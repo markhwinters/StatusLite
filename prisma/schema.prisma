@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client"
+  output = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  projects  Project[]
+}
+
+model Project {
+  id             String   @id @default(cuid())
+  name           String
+  slug           String   @unique
+  customDomain   String?  @unique
+  
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  
+  organizationId String?
+  
+  components     Component[]
+  incidents      Incident[]
+  monitors       Monitor[]
+  subscribers    Subscriber[]
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([organizationId])
+}
+
+model Component {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  status      String   @default("operational")
+  order       Int      @default(0)
+  
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  incidents   Incident[]
+  monitors    Monitor[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([projectId])
+}
+
+model Monitor {
+  id             String   @id @default(cuid())
+  url            String
+  method         String   @default("GET")
+  interval       Int      @default(300)
+  timeout        Int      @default(30)
+  
+  expectedStatus Int[]    @default([200, 201, 204])
+  
+  status         String   @default("unknown")
+  lastChecked    DateTime?
+  lastStatus     Int?
+  
+  alertAfter     Int      @default(1)
+  currentFails   Int      @default(0)
+  
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  componentId    String?
+  component      Component? @relation(fields: [componentId], references: [id])
+  
+  checks         MonitorCheck[]
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([projectId])
+  @@index([componentId])
+}
+
+model MonitorCheck {
+  id           String   @id @default(cuid())
+  status       Int
+  responseTime Int
+  success      Boolean
+  errorMessage String?
+  
+  monitorId    String
+  monitor      Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  
+  checkedAt    DateTime @default(now())
+  
+  @@index([monitorId, checkedAt])
+}
+
+model Incident {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  status      String
+  impact      String
+  
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  componentId String?
+  component   Component? @relation(fields: [componentId], references: [id])
+  
+  updates     IncidentUpdate[]
+  
+  startedAt   DateTime @default(now())
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([projectId, startedAt])
+}
+
+model IncidentUpdate {
+  id         String   @id @default(cuid())
+  message    String
+  status     String
+  
+  incidentId String
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  
+  createdAt  DateTime @default(now())
+  
+  @@index([incidentId])
+}
+
+model Subscriber {
+  id          String   @id @default(cuid())
+  email       String
+  verified    Boolean  @default(false)
+  verifyToken String?  @unique
+  
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  
+  @@unique([email, projectId])
+}
